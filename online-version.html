@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Multiplayer Four-in-a-Row game for Jay and Tiana with GTA V-inspired visuals">
+    <meta name="theme-color" content="#0f0f0f">
+    <title>Four-in-a-Row | Jay vs Tiana - Online</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --neon-pink: #ff0099;
+            --neon-blue: #00ffff;
+            --neon-purple: #9945ff;
+            --neon-green: #39ff14;
+            --dark-bg: #0a0a0a;
+            --glass-bg: rgba(15, 15, 15, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+        }
+
+        body {
+            font-family: 'Arial Black', 'Helvetica', sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2a 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(255, 0, 153, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 50%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 50% 100%, rgba(153, 69, 255, 0.1) 0%, transparent 50%);
+            animation: bgPulse 10s ease-in-out infinite;
+        }
+
+        @keyframes bgPulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* City skyline */
+        .skyline {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 200px;
+            z-index: -1;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+            opacity: 0.3;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 2rem 1rem 1rem;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .title {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(45deg, var(--neon-pink), var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 0, 153, 0.5);
+            animation: neonFlicker 2s ease-in-out infinite;
+            margin-bottom: 0.5rem;
+        }
+
+        @keyframes neonFlicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            letter-spacing: 2px;
+        }
+
+        /* Online indicator */
+        .online-status {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            font-size: 0.9rem;
+            z-index: 10;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--neon-green);
+            animation: statusPulse 2s ease-in-out infinite;
+        }
+
+        .status-dot.offline {
+            background: #ff4444;
+            animation: none;
+        }
+
+        @keyframes statusPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Game container */
+        .game-container {
+            width: 100%;
+            max-width: 1200px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 
+                0 0 50px rgba(255, 0, 153, 0.3),
+                inset 0 0 20px rgba(255, 255, 255, 0.05);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal h2 {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+            background: linear-gradient(45deg, var(--neon-pink), var(--neon-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 20px rgba(255, 0, 153, 0.3);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .error-message {
+            color: #ff4444;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            display: none;
+            text-align: center;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: shake 0.3s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+        }
+
+        /* Lobby */
+        .lobby {
+            display: none;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 
+                0 0 50px rgba(255, 0, 153, 0.3),
+                inset 0 0 20px rgba(255, 255, 255, 0.05);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .lobby.active {
+            display: block;
+        }
+
+        .lobby h2 {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+            background: linear-gradient(45deg, var(--neon-pink), var(--neon-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .room-info {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .room-code {
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 5px;
+            color: var(--neon-blue);
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            margin: 1rem 0;
+            font-family: monospace;
+        }
+
+        .copy-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.8rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--neon-blue);
+        }
+
+        .players-list {
+            margin-top: 2rem;
+        }
+
+        .player-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 0.8rem;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .player-item.ready {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 20px rgba(57, 255, 20, 0.2);
+        }
+
+        .player-name {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .player-status {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .waiting-animation {
+            text-align: center;
+            margin: 2rem 0;
+            color: var(--text-secondary);
+        }
+
+        .waiting-dots {
+            display: inline-block;
+        }
+
+        .waiting-dots::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 1rem 2rem;
+            background: linear-gradient(45deg, var(--neon-pink), var(--neon-purple));
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(255, 0, 153, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(255, 0, 153, 0.5);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, var(--neon-blue), var(--neon-green));
+            box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 6px 30px rgba(0, 255, 255, 0.5);
+        }
+
+        .btn-small {
+            padding: 0.7rem 1.5rem;
+            font-size: 0.9rem;
+        }
+
+        /* Game info */
+        .game-info {
+            display: none;
+            gap: 2rem;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .game-info.active {
+            display: flex;
+        }
+
+        .player-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            padding: 1.5rem;
+            min-width: 150px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .player-card.active {
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 30px rgba(255, 0, 153, 0.4);
+            transform: scale(1.05);
+        }
+
+        .player-card.active::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, var(--neon-pink), var(--neon-blue), var(--neon-purple));
+            border-radius: 15px;
+            z-index: -1;
+            animation: borderRotate 3s linear infinite;
+        }
+
+        @keyframes borderRotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .player-card .player-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .player-disc {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin: 0.5rem auto;
+            box-shadow: 0 0 15px currentColor;
+        }
+
+        .player1 .player-disc {
+            background: linear-gradient(135deg, var(--neon-pink), #ff33cc);
+        }
+
+        .player2 .player-disc {
+            background: linear-gradient(135deg, var(--neon-blue), #33ffff);
+        }
+
+        .connection-status {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .connection-status.connected {
+            color: var(--neon-green);
+        }
+
+        /* Game board */
+        .board-wrapper {
+            display: none;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 2px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 
+                0 0 50px rgba(153, 69, 255, 0.2),
+                inset 0 0 30px rgba(255, 255, 255, 0.05);
+        }
+
+        .board-wrapper.active {
+            display: block;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            min-width: 40px;
+            max-width: 80px;
+        }
+
+        .cell:hover:not(.filled):not(.disabled) {
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .cell.disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .cell.filled {
+            cursor: not-allowed;
+            animation: dropIn 0.5s ease-out;
+        }
+
+        @keyframes dropIn {
+            0% {
+                transform: translateY(-200px) scale(0.8);
+                opacity: 0;
+            }
+            50% {
+                transform: translateY(10px) scale(1.1);
+            }
+            100% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .cell.player1 {
+            background: linear-gradient(135deg, var(--neon-pink), #ff33cc);
+            border-color: var(--neon-pink);
+            box-shadow: 
+                0 0 20px rgba(255, 0, 153, 0.6),
+                inset 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .cell.player2 {
+            background: linear-gradient(135deg, var(--neon-blue), #33ffff);
+            border-color: var(--neon-blue);
+            box-shadow: 
+                0 0 20px rgba(0, 255, 255, 0.6),
+                inset 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .cell.winner {
+            animation: winPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes winPulse {
+            0%, 100% {
+                transform: scale(1);
+                filter: brightness(1);
+            }
+            50% {
+                transform: scale(1.15);
+                filter: brightness(1.5);
+            }
+        }
+
+        /* Win message */
+        .win-message {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 2px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 2rem;
+            text-align: center;
+            z-index: 100;
+            animation: winAppear 0.5s ease-out;
+            box-shadow: 0 0 100px rgba(255, 0, 153, 0.5);
+        }
+
+        .win-message.show {
+            display: block;
+        }
+
+        @keyframes winAppear {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0;
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .win-text {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            animation: winTextGlow 1s ease-in-out infinite;
+        }
+
+        @keyframes winTextGlow {
+            0%, 100% {
+                text-shadow: 0 0 20px rgba(255, 0, 153, 0.8);
+            }
+            50% {
+                text-shadow: 0 0 40px rgba(255, 0, 153, 1);
+            }
+        }
+
+        .win-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+
+        .win-actions .btn {
+            padding: 0.8rem 1.5rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .board {
+                gap: 0.3rem;
+                padding: 0.5rem;
+            }
+            
+            .cell {
+                min-width: 35px;
+            }
+            
+            .modal-content {
+                padding: 2rem 1.5rem;
+            }
+            
+            .game-info {
+                gap: 1rem;
+            }
+            
+            .player-card {
+                min-width: 120px;
+                padding: 1rem;
+            }
+
+            .online-status {
+                top: 0.5rem;
+                right: 0.5rem;
+                padding: 0.3rem 0.8rem;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background elements -->
+    <div class="bg-animation"></div>
+    <div class="skyline"></div>
+
+    <!-- Online Status -->
+    <div class="online-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Connecting...</span>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <h1 class="title">Four-in-a-Row</h1>
+        <p class="subtitle">JAY VS TIANA - ONLINE</p>
+    </header>
+
+    <!-- Initial Setup Modal -->
+    <div class="modal active" id="setupModal">
+        <div class="modal-content">
+            <h2>Join Game</h2>
+            <div class="input-group">
+                <label for="playerNameInput">Your Name</label>
+                <input type="text" id="playerNameInput" placeholder="Jay or Tiana" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label for="roomCodeInput">Room Code (Optional)</label>
+                <input type="text" id="roomCodeInput" placeholder="Leave empty to create new" autocomplete="off" maxlength="6">
+            </div>
+            <div class="error-message" id="setupError"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="createRoom()">Create Room</button>
+                <button class="btn btn-secondary" onclick="joinRoom()">Join Room</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Lobby -->
+    <main class="game-container">
+        <div class="lobby" id="lobby">
+            <h2>Game Lobby</h2>
+            <div class="room-info">
+                <p style="text-align: center; color: var(--text-secondary); margin-bottom: 0.5rem;">Share this code with your opponent:</p>
+                <div class="room-code" id="roomCode">------</div>
+                <button class="copy-btn" onclick="copyRoomCode()">
+                    <span>📋</span>
+                    <span>Copy Room Code</span>
+                </button>
+            </div>
+            <div class="players-list" id="playersList">
+                <div class="player-item" id="player1Item">
+                    <span class="player-name" id="player1LobbyName">Waiting...</span>
+                    <span class="player-status">Player 1</span>
+                </div>
+                <div class="player-item" id="player2Item">
+                    <span class="player-name" id="player2LobbyName">Waiting...</span>
+                    <span class="player-status">Player 2</span>
+                </div>
+            </div>
+            <div class="waiting-animation" id="waitingMessage">
+                <p>Waiting for opponent<span class="waiting-dots"></span></p>
+            </div>
+            <button class="btn btn-secondary btn-small" onclick="leaveRoom()">Leave Room</button>
+        </div>
+
+        <!-- Game info -->
+        <div class="game-info" id="gameInfo">
+            <div class="player-card player1" id="player1Card">
+                <div class="player-name" id="player1Name">Player 1</div>
+                <div class="player-disc"></div>
+                <div class="connection-status" id="player1Status">Connected</div>
+            </div>
+            <div class="player-card player2" id="player2Card">
+                <div class="player-name" id="player2Name">Player 2</div>
+                <div class="player-disc"></div>
+                <div class="connection-status" id="player2Status">Connected</div>
+            </div>
+        </div>
+
+        <!-- Game board -->
+        <div class="board-wrapper" id="boardWrapper">
+            <div class="board" id="board"></div>
+        </div>
+    </main>
+
+    <!-- Win message -->
+    <div class="win-message" id="winMessage">
+        <div class="win-text" id="winText">Winner!</div>
+        <div class="win-actions">
+            <button class="btn" onclick="rematch()">Rematch</button>
+            <button class="btn btn-secondary" onclick="leaveRoom()">Leave Room</button>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script>
+        // ====================================
+        // IMPORTANT: REPLACE WITH YOUR FIREBASE CONFIG
+        // ====================================
+        const firebaseConfig = {
+
+                apiKey: "AIzaSyBR1NAO-C0IbDVPE8pr6ox20hvCMrb9HxU",
+
+                authDomain: "four-in-a-row-deadass.firebaseapp.com",
+
+                databaseURL: "https://four-in-a-row-deadass-default-rtdb.firebaseio.com",
+
+                projectId: "four-in-a-row-deadass",
+
+                storageBucket: "four-in-a-row-deadass.firebasestorage.app",
+
+                messagingSenderId: "14083015040",
+
+                appId: "1:14083015040:web:219c2f2473d441fe054165",
+
+                measurementId: "G-Z501RHZH23"
+
+            };
+
+        // ====================================
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Game state
+        let currentRoom = null;
+        let currentPlayer = null;
+        let myPlayerNumber = null;
+        let gameActive = false;
+        let board = [];
+        let roomRef = null;
+        let isMyTurn = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeBoard();
+            setupConnectionMonitoring();
+        });
+
+        // Setup connection monitoring
+        function setupConnectionMonitoring() {
+            const connectedRef = database.ref('.info/connected');
+            connectedRef.on('value', (snapshot) => {
+                const connected = snapshot.val();
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+                
+                if (connected) {
+                    statusDot.classList.remove('offline');
+                    statusText.textContent = 'Online';
+                } else {
+                    statusDot.classList.add('offline');
+                    statusText.textContent = 'Offline';
+                }
+            });
+        }
+
+        // Generate room code
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        // Create room
+        async function createRoom() {
+            const playerName = document.getElementById('playerNameInput').value.trim();
+            const errorEl = document.getElementById('setupError');
+            
+            if (!playerName || (playerName.toLowerCase() !== 'jay' && playerName.toLowerCase() !== 'tiana')) {
+                errorEl.textContent = 'Only Jay or Tiana can play!';
+                errorEl.classList.add('show');
+                return;
+            }
+            
+            currentPlayer = playerName.charAt(0).toUpperCase() + playerName.slice(1).toLowerCase();
+            currentRoom = generateRoomCode();
+            myPlayerNumber = 1;
+            
+            // Create room in Firebase
+            roomRef = database.ref('rooms/' + currentRoom);
+            await roomRef.set({
+                created: Date.now(),
+                state: 'waiting',
+                player1: currentPlayer,
+                player2: null,
+                board: Array(6).fill(null).map(() => Array(7).fill(0)),
+                currentTurn: 1,
+                winner: null
+            });
+            
+            // Setup listeners
+            setupRoomListeners();
+            
+            // Show lobby
+            document.getElementById('setupModal').classList.remove('active');
+            document.getElementById('lobby').classList.add('active');
+            document.getElementById('roomCode').textContent = currentRoom;
+            document.getElementById('player1LobbyName').textContent = currentPlayer;
+            document.getElementById('player1Item').classList.add('ready');
+        }
+
+        // Join room
+        async function joinRoom() {
+            const playerName = document.getElementById('playerNameInput').value.trim();
+            const roomCode = document.getElementById('roomCodeInput').value.toUpperCase().trim();
+            const errorEl = document.getElementById('setupError');
+            
+            if (!playerName || (playerName.toLowerCase() !== 'jay' && playerName.toLowerCase() !== 'tiana')) {
+                errorEl.textContent = 'Only Jay or Tiana can play!';
+                errorEl.classList.add('show');
+                return;
+            }
+            
+            if (!roomCode) {
+                errorEl.textContent = 'Please enter a room code!';
+                errorEl.classList.add('show');
+                return;
+            }
+            
+            currentPlayer = playerName.charAt(0).toUpperCase() + playerName.slice(1).toLowerCase();
+            currentRoom = roomCode;
+            
+            // Check if room exists
+            roomRef = database.ref('rooms/' + roomCode);
+            const snapshot = await roomRef.once('value');
+            
+            if (!snapshot.exists()) {
+                errorEl.textContent = 'Room not found!';
+                errorEl.classList.add('show');
+                return;
+            }
+            
+            const roomData = snapshot.val();
+            
+            if (roomData.player2) {
+                errorEl.textContent = 'Room is full!';
+                errorEl.classList.add('show');
+                return;
+            }
+            
+            if (roomData.player1.toLowerCase() === currentPlayer.toLowerCase()) {
+                errorEl.textContent = 'Both players must be different!';
+                errorEl.classList.add('show');
+                return;
+            }
+            
+            myPlayerNumber = 2;
+            await roomRef.update({
+                player2: currentPlayer,
+                state: 'playing'
+            });
+            
+            // Setup listeners
+            setupRoomListeners();
+            
+            // Show lobby then start
+            document.getElementById('setupModal').classList.remove('active');
+            document.getElementById('lobby').classList.add('active');
+            document.getElementById('roomCode').textContent = currentRoom;
+        }
+
+        // Setup room listeners
+        function setupRoomListeners() {
+            roomRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+                
+                // Update lobby
+                if (data.player1) {
+                    document.getElementById('player1LobbyName').textContent = data.player1;
+                    document.getElementById('player1Item').classList.add('ready');
+                }
+                
+                if (data.player2) {
+                    document.getElementById('player2LobbyName').textContent = data.player2;
+                    document.getElementById('player2Item').classList.add('ready');
+                    document.getElementById('waitingMessage').style.display = 'none';
+                    
+                    // Start game if both players present
+                    if (data.state === 'playing' && !gameActive) {
+                        startGame(data);
+                    }
+                }
+                
+                // Update game state
+                if (gameActive && data.state === 'playing') {
+                    updateGameState(data);
+                }
+                
+                // Check for winner
+                if (data.winner !== null && gameActive) {
+                    endGame(data.winner, data.player1, data.player2);
+                }
+            });
+        }
+
+        // Start game
+        function startGame(data) {
+            document.getElementById('lobby').classList.remove('active');
+            document.getElementById('gameInfo').classList.add('active');
+            document.getElementById('boardWrapper').classList.add('active');
+            
+            document.getElementById('player1Name').textContent = data.player1;
+            document.getElementById('player2Name').textContent = data.player2;
+            
+            board = data.board;
+            gameActive = true;
+            isMyTurn = (data.currentTurn === myPlayerNumber);
+            
+            updateTurnIndicator(data.currentTurn);
+            renderBoard();
+        }
+
+        // Initialize board
+        function initializeBoard() {
+            board = Array(6).fill(null).map(() => Array(7).fill(0));
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            
+            for (let row = 0; row < 6; row++) {
+                for (let col = 0; col < 7; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.onclick = () => makeMove(col);
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        // Render board
+        function renderBoard() {
+            const cells = document.querySelectorAll('.cell');
+            for (let row = 0; row < 6; row++) {
+                for (let col = 0; col < 7; col++) {
+                    const index = row * 7 + col;
+                    const cell = cells[index];
+                    const value = board[row][col];
+                    
+                    cell.className = 'cell';
+                    if (value !== 0) {
+                        cell.classList.add('filled', `player${value}`);
+                    }
+                    if (!isMyTurn) {
+                        cell.classList.add('disabled');
+                    }
+                }
+            }
+        }
+
+        // Make move
+        async function makeMove(col) {
+            if (!gameActive || !isMyTurn || !roomRef) return;
+            
+            // Find lowest empty row
+            let moveRow = -1;
+            for (let row = 5; row >= 0; row--) {
+                if (board[row][col] === 0) {
+                    moveRow = row;
+                    break;
+                }
+            }
+            
+            if (moveRow === -1) return; // Column full
+            
+            // Update board locally
+            board[moveRow][col] = myPlayerNumber;
+            
+            // Check for win
+            const winner = checkWin(moveRow, col) ? myPlayerNumber : 
+                          (checkDraw() ? 0 : null);
+            
+            // Update Firebase
+            await roomRef.update({
+                board: board,
+                currentTurn: myPlayerNumber === 1 ? 2 : 1,
+                winner: winner
+            });
+            
+            isMyTurn = false;
+        }
+
+        // Update game state
+        function updateGameState(data) {
+            board = data.board;
+            isMyTurn = (data.currentTurn === myPlayerNumber);
+            updateTurnIndicator(data.currentTurn);
+            renderBoard();
+        }
+
+        // Update turn indicator
+        function updateTurnIndicator(currentTurn) {
+            const p1Card = document.getElementById('player1Card');
+            const p2Card = document.getElementById('player2Card');
+            
+            if (currentTurn === 1) {
+                p1Card.classList.add('active');
+                p2Card.classList.remove('active');
+            } else {
+                p1Card.classList.remove('active');
+                p2Card.classList.add('active');
+            }
+        }
+
+        // Check for win
+        function checkWin(row, col) {
+            const player = board[row][col];
+            
+            // Check all four directions
+            return checkDirection(row, col, 0, 1, player) || // Horizontal
+                   checkDirection(row, col, 1, 0, player) || // Vertical
+                   checkDirection(row, col, 1, 1, player) || // Diagonal \
+                   checkDirection(row, col, 1, -1, player);  // Diagonal /
+        }
+
+        // Check direction for win
+        function checkDirection(row, col, deltaRow, deltaCol, player) {
+            let count = 1;
+            
+            // Check forward
+            for (let i = 1; i < 4; i++) {
+                const newRow = row + deltaRow * i;
+                const newCol = col + deltaCol * i;
+                if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
+                    count++;
+                } else break;
+            }
+            
+            // Check backward
+            for (let i = 1; i < 4; i++) {
+                const newRow = row - deltaRow * i;
+                const newCol = col - deltaCol * i;
+                if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
+                    count++;
+                } else break;
+            }
+            
+            return count >= 4;
+        }
+
+        // Check for draw
+        function checkDraw() {
+            return board.every(row => row.every(cell => cell !== 0));
+        }
+
+        // End game
+        function endGame(winner, player1, player2) {
+            gameActive = false;
+            const winMessage = document.getElementById('winMessage');
+            const winText = document.getElementById('winText');
+            
+            if (winner === 0) {
+                winText.textContent = "It's a Draw!";
+            } else {
+                const winnerName = winner === 1 ? player1 : player2;
+                winText.textContent = `${winnerName} Wins!`;
+            }
+            
+            setTimeout(() => {
+                winMessage.classList.add('show');
+            }, 500);
+        }
+
+        // Rematch
+        async function rematch() {
+            document.getElementById('winMessage').classList.remove('show');
+            
+            await roomRef.update({
+                board: Array(6).fill(null).map(() => Array(7).fill(0)),
+                currentTurn: 1,
+                winner: null
+            });
+            
+            gameActive = true;
+            initializeBoard();
+        }
+
+        // Leave room
+        async function leaveRoom() {
+            if (roomRef) {
+                // If player 2 leaves, just remove player 2
+                if (myPlayerNumber === 2) {
+                    await roomRef.update({
+                        player2: null,
+                        state: 'waiting'
+                    });
+                } else {
+                    // If player 1 leaves, delete the room
+                    await roomRef.remove();
+                }
+                
+                roomRef.off();
+            }
+            
+            // Reset everything
+            currentRoom = null;
+            currentPlayer = null;
+            myPlayerNumber = null;
+            gameActive = false;
+            isMyTurn = false;
+            
+            // Reset UI
+            document.getElementById('lobby').classList.remove('active');
+            document.getElementById('gameInfo').classList.remove('active');
+            document.getElementById('boardWrapper').classList.remove('active');
+            document.getElementById('winMessage').classList.remove('show');
+            document.getElementById('setupModal').classList.add('active');
+            
+            // Clear inputs
+            document.getElementById('playerNameInput').value = '';
+            document.getElementById('roomCodeInput').value = '';
+            document.getElementById('setupError').classList.remove('show');
+            
+            initializeBoard();
+        }
+
+        // Copy room code
+        function copyRoomCode() {
+            const code = document.getElementById('roomCode').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target.closest('.copy-btn');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<span>✓</span><span>Copied!</span>';
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                }, 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement("textarea");
+                textArea.value = code;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            });
+        }
+    </script>
+</body>
+</html>
