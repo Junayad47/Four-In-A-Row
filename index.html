@@ -133,6 +133,7 @@
             border: 1px solid var(--glass-border);
             border-radius: 20px;
             font-size: 0.9rem;
+            z-index: 10;
         }
 
         .status-dot {
@@ -587,7 +588,7 @@
 
         .cell.disabled {
             cursor: not-allowed;
-            opacity: 0.5;
+            opacity: 0.7;
         }
 
         .cell.filled {
@@ -797,6 +798,13 @@
                 min-width: 120px;
                 padding: 1rem;
             }
+
+            .online-status {
+                top: 0.5rem;
+                right: 0.5rem;
+                padding: 0.3rem 0.8rem;
+                font-size: 0.8rem;
+            }
         }
 
         /* Loading */
@@ -827,6 +835,18 @@
         @keyframes loadingPulse {
             0%, 100% { opacity: 0.5; }
             50% { opacity: 1; }
+        }
+
+        .debug-info {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            display: none;
         }
     </style>
 </head>
@@ -866,8 +886,8 @@
             </div>
             <div class="error-message" id="setupError"></div>
             <div class="modal-actions">
-                <button class="btn" onclick="createRoom()">Create Room</button>
-                <button class="btn btn-secondary" onclick="joinRoom()">Join Room</button>
+                <button class="btn" onclick="game.createRoom()">Create Room</button>
+                <button class="btn btn-secondary" onclick="game.joinRoom()">Join Room</button>
             </div>
         </div>
     </div>
@@ -879,7 +899,7 @@
             <div class="room-info">
                 <p style="text-align: center; color: var(--text-secondary); margin-bottom: 0.5rem;">Share this code with your opponent:</p>
                 <div class="room-code" id="roomCode">------</div>
-                <button class="copy-btn" onclick="copyRoomCode()">
+                <button class="copy-btn" onclick="game.copyRoomCode()">
                     <span>📋</span>
                     <span>Copy Room Code</span>
                 </button>
@@ -897,7 +917,7 @@
             <div class="waiting-animation" id="waitingMessage">
                 <p>Waiting for opponent<span class="waiting-dots"></span></p>
             </div>
-            <button class="btn btn-secondary btn-small" onclick="leaveRoom()">Leave Room</button>
+            <button class="btn btn-secondary btn-small" onclick="game.leaveRoom()">Leave Room</button>
         </div>
 
         <!-- Game info -->
@@ -947,8 +967,8 @@
     <div class="win-message" id="winMessage">
         <div class="win-text" id="winText">Winner!</div>
         <div class="win-actions">
-            <button class="btn" onclick="rematch()">Rematch</button>
-            <button class="btn btn-secondary" onclick="leaveRoom()">Leave Room</button>
+            <button class="btn" onclick="game.rematch()">Rematch</button>
+            <button class="btn btn-secondary" onclick="game.leaveRoom()">Leave Room</button>
         </div>
     </div>
 
@@ -956,577 +976,609 @@
     <div class="disconnect-message" id="disconnectMessage">
         <h2 style="color: #ff4444; margin-bottom: 1rem;">Opponent Disconnected</h2>
         <p style="margin-bottom: 1.5rem;">Your opponent has left the game.</p>
-        <button class="btn" onclick="returnToLobby()">Return to Lobby</button>
+        <button class="btn" onclick="game.returnToLobby()">Return to Lobby</button>
     </div>
+
+    <!-- Debug info (hidden by default) -->
+    <div class="debug-info" id="debugInfo"></div>
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
     <script>
-        // Firebase configuration - Using a public project for demo
-        // For production, replace with your own Firebase config
-        const firebaseConfig = {
+        // Game controller class
+        class Connect4Game {
+            constructor() {
+                this.currentRoom = null;
+                this.currentPlayer = null;
+                this.myPlayerNumber = null;
+                this.gameActive = false;
+                this.board = this.createEmptyBoard();
+                this.roomRef = null;
+                this.connectionRef = null;
+                this.connectedRef = null;
+                this.roomListener = null;
+                this.sessionStats = {
+                    totalGames: 0,
+                    jayWins: 0,
+                    tianaWins: 0
+                };
+                this.isProcessingMove = false;
+                this.lastProcessedMove = null;
+            }
 
-                apiKey: "AIzaSyBR1NAO-C0IbDVPE8pr6ox20hvCMrb9HxU",
+            createEmptyBoard() {
+                return Array(6).fill(null).map(() => Array(7).fill(0));
+            }
 
-                authDomain: "four-in-a-row-deadass.firebaseapp.com",
+            init() {
+                // Firebase configuration
+                const firebaseConfig = {
+                    apiKey: "AIzaSyBxPxs0D3-8YRiXRqBQZ7QqGp8wVPo1J8Y",
+                    authDomain: "connect4-jay-tiana.firebaseapp.com",
+                    databaseURL: "https://connect4-jay-tiana-default-rtdb.firebaseio.com",
+                    projectId: "connect4-jay-tiana",
+                    storageBucket: "connect4-jay-tiana.appspot.com",
+                    messagingSenderId: "585691516053",
+                    appId: "1:585691516053:web:4e6c9e0f8d3c7a9b2c3d4e"
+                };
 
-                databaseURL: "https://four-in-a-row-deadass-default-rtdb.firebaseio.com",
-
-                projectId: "four-in-a-row-deadass",
-
-                storageBucket: "four-in-a-row-deadass.firebasestorage.app",
-
-                messagingSenderId: "14083015040",
-
-                appId: "1:14083015040:web:219c2f2473d441fe054165",
-
-                measurementId: "G-Z501RHZH23"
-
-            };
-
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-
-        // Game state
-        let currentRoom = null;
-        let currentPlayer = null;
-        let myPlayerNumber = null;
-        let gameActive = false;
-        let board = [];
-        let roomRef = null;
-        let connectionRef = null;
-        let connectedRef = null;
-        let sessionStats = {
-            totalGames: 0,
-            jayWins: 0,
-            tianaWins: 0
-        };
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeBoard();
-            setupConnectionMonitoring();
-            
-            // Hide loading after a moment
-            setTimeout(() => {
-                document.getElementById('loading').classList.add('hidden');
-            }, 1000);
-        });
-
-        // Setup connection monitoring
-        function setupConnectionMonitoring() {
-            connectedRef = database.ref('.info/connected');
-            connectedRef.on('value', (snapshot) => {
-                const connected = snapshot.val();
-                const statusDot = document.getElementById('statusDot');
-                const statusText = document.getElementById('statusText');
+                // Initialize Firebase
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                this.database = firebase.database();
                 
-                if (connected) {
-                    statusDot.classList.remove('offline');
-                    statusText.textContent = 'Online';
-                } else {
-                    statusDot.classList.add('offline');
-                    statusText.textContent = 'Offline';
-                }
-            });
-        }
-
-        // Validate player name
-        function validatePlayerName(name) {
-            const validNames = ['jay', 'tiana'];
-            return validNames.includes(name.toLowerCase().trim());
-        }
-
-        // Generate room code
-        function generateRoomCode() {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            let code = '';
-            for (let i = 0; i < 6; i++) {
-                code += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return code;
-        }
-
-        // Create room
-        async function createRoom() {
-            const playerName = document.getElementById('playerNameInput').value;
-            const errorEl = document.getElementById('setupError');
-            
-            if (!validatePlayerName(playerName)) {
-                errorEl.textContent = 'Only Jay or Tiana can play!';
-                errorEl.classList.add('show');
-                return;
-            }
-            
-            currentPlayer = playerName.charAt(0).toUpperCase() + playerName.slice(1).toLowerCase();
-            const roomCode = generateRoomCode();
-            currentRoom = roomCode;
-            
-            // Create room in Firebase
-            roomRef = database.ref('rooms/' + roomCode);
-            const roomData = {
-                created: firebase.database.ServerValue.TIMESTAMP,
-                state: 'waiting',
-                players: {
-                    player1: {
-                        name: currentPlayer,
-                        connected: true
-                    }
-                },
-                board: Array(6).fill(null).map(() => Array(7).fill(0)),
-                currentTurn: 1,
-                winner: null
-            };
-            
-            await roomRef.set(roomData);
-            myPlayerNumber = 1;
-            
-            // Setup room listeners
-            setupRoomListeners();
-            
-            // Show lobby
-            document.getElementById('setupModal').classList.remove('active');
-            document.getElementById('lobby').classList.add('active');
-            document.getElementById('roomCode').textContent = roomCode;
-            document.getElementById('currentRoom').textContent = roomCode;
-            document.getElementById('player1LobbyName').textContent = currentPlayer;
-            document.getElementById('player1Item').classList.add('ready');
-            
-            // Monitor connection
-            setupPlayerConnection();
-        }
-
-        // Join room
-        async function joinRoom() {
-            const playerName = document.getElementById('playerNameInput').value;
-            const roomCode = document.getElementById('roomCodeInput').value.toUpperCase();
-            const errorEl = document.getElementById('setupError');
-            
-            if (!validatePlayerName(playerName)) {
-                errorEl.textContent = 'Only Jay or Tiana can play!';
-                errorEl.classList.add('show');
-                return;
-            }
-            
-            if (!roomCode) {
-                errorEl.textContent = 'Please enter a room code!';
-                errorEl.classList.add('show');
-                return;
-            }
-            
-            currentPlayer = playerName.charAt(0).toUpperCase() + playerName.slice(1).toLowerCase();
-            currentRoom = roomCode;
-            
-            // Check if room exists
-            roomRef = database.ref('rooms/' + roomCode);
-            const snapshot = await roomRef.once('value');
-            
-            if (!snapshot.exists()) {
-                errorEl.textContent = 'Room not found!';
-                errorEl.classList.add('show');
-                return;
-            }
-            
-            const roomData = snapshot.val();
-            
-            // Check if room is full
-            if (roomData.players.player2) {
-                errorEl.textContent = 'Room is full!';
-                errorEl.classList.add('show');
-                return;
-            }
-            
-            // Check if names are different
-            if (roomData.players.player1.name.toLowerCase() === currentPlayer.toLowerCase()) {
-                errorEl.textContent = 'Both players must be different (Jay vs Tiana)!';
-                errorEl.classList.add('show');
-                return;
-            }
-            
-            // Join as player 2
-            myPlayerNumber = 2;
-            await roomRef.child('players/player2').set({
-                name: currentPlayer,
-                connected: true
-            });
-            await roomRef.child('state').set('ready');
-            
-            // Setup room listeners
-            setupRoomListeners();
-            
-            // Show lobby
-            document.getElementById('setupModal').classList.remove('active');
-            document.getElementById('lobby').classList.add('active');
-            document.getElementById('roomCode').textContent = roomCode;
-            document.getElementById('currentRoom').textContent = roomCode;
-            
-            // Setup connection monitoring
-            setupPlayerConnection();
-        }
-
-        // Setup room listeners
-        function setupRoomListeners() {
-            // Listen for room changes
-            roomRef.on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (!data) return;
+                this.initializeBoard();
+                this.setupConnectionMonitoring();
                 
-                updateLobby(data);
-                
-                if (data.state === 'ready' && data.players.player1 && data.players.player2) {
-                    startGame(data);
-                }
-                
-                if (data.state === 'playing') {
-                    updateGame(data);
-                }
-                
-                if (data.winner !== null) {
-                    handleGameEnd(data);
-                }
-            });
-            
-            // Listen for disconnections
-            roomRef.child('players').on('child_changed', (snapshot) => {
-                const playerData = snapshot.val();
-                if (!playerData.connected && gameActive) {
-                    handleOpponentDisconnect();
-                }
-            });
-        }
-
-        // Setup player connection monitoring
-        function setupPlayerConnection() {
-            const playerPath = `players/player${myPlayerNumber}/connected`;
-            connectionRef = roomRef.child(playerPath);
-            
-            // Set connected to true when we connect
-            connectionRef.set(true);
-            
-            // Remove player when we disconnect
-            connectionRef.onDisconnect().set(false);
-        }
-
-        // Update lobby
-        function updateLobby(data) {
-            if (data.players.player1) {
-                document.getElementById('player1LobbyName').textContent = data.players.player1.name;
-                document.getElementById('player1Item').classList.add('ready');
-            }
-            
-            if (data.players.player2) {
-                document.getElementById('player2LobbyName').textContent = data.players.player2.name;
-                document.getElementById('player2Item').classList.add('ready');
-                document.getElementById('waitingMessage').style.display = 'none';
-            } else {
-                document.getElementById('player2LobbyName').textContent = 'Waiting...';
-                document.getElementById('player2Item').classList.remove('ready');
-                document.getElementById('waitingMessage').style.display = 'block';
-            }
-        }
-
-        // Start game
-        function startGame(data) {
-            document.getElementById('lobby').classList.remove('active');
-            document.getElementById('gameInfo').classList.add('active');
-            document.getElementById('boardWrapper').classList.add('active');
-            
-            document.getElementById('player1Name').textContent = data.players.player1.name;
-            document.getElementById('player2Name').textContent = data.players.player2.name;
-            
-            board = data.board || Array(6).fill(null).map(() => Array(7).fill(0));
-            gameActive = true;
-            
-            updateTurnIndicator(data.currentTurn);
-            initializeBoard();
-        }
-
-        // Initialize board
-        function initializeBoard() {
-            board = Array(6).fill(null).map(() => Array(7).fill(0));
-            const boardEl = document.getElementById('board');
-            boardEl.innerHTML = '';
-            
-            for (let row = 0; row < 6; row++) {
-                for (let col = 0; col < 7; col++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.dataset.row = row;
-                    cell.dataset.col = col;
-                    cell.onclick = () => makeMove(col);
-                    boardEl.appendChild(cell);
-                }
-            }
-        }
-
-        // Make move
-        async function makeMove(col) {
-            if (!gameActive || !roomRef) return;
-            
-            // Check if it's our turn
-            const snapshot = await roomRef.once('value');
-            const data = snapshot.val();
-            
-            if (data.currentTurn !== myPlayerNumber) {
-                return; // Not our turn
-            }
-            
-            // Find lowest empty row
-            for (let row = 5; row >= 0; row--) {
-                if (data.board[row][col] === 0) {
-                    // Update board in Firebase
-                    const updates = {};
-                    updates[`board/${row}/${col}`] = myPlayerNumber;
-                    updates['currentTurn'] = myPlayerNumber === 1 ? 2 : 1;
-                    updates['lastMove'] = { row, col, player: myPlayerNumber };
-                    
-                    await roomRef.update(updates);
-                    
-                    // Check for win
-                    const newBoard = [...data.board];
-                    newBoard[row][col] = myPlayerNumber;
-                    
-                    if (checkWin(newBoard, row, col)) {
-                        await roomRef.update({ winner: myPlayerNumber });
-                    } else if (checkDraw(newBoard)) {
-                        await roomRef.update({ winner: 0 });
-                    }
-                    
-                    break;
-                }
-            }
-        }
-
-        // Update game state
-        function updateGame(data) {
-            if (!data.board) return;
-            
-            // Update board visuals
-            const cells = document.querySelectorAll('.cell');
-            for (let row = 0; row < 6; row++) {
-                for (let col = 0; col < 7; col++) {
-                    const index = row * 7 + col;
-                    const cell = cells[index];
-                    const value = data.board[row][col];
-                    
-                    cell.className = 'cell';
-                    if (value !== 0) {
-                        cell.classList.add('filled', `player${value}`);
-                    }
-                    
-                    // Disable cells if not our turn
-                    if (data.currentTurn !== myPlayerNumber) {
-                        cell.classList.add('disabled');
-                    }
-                }
-            }
-            
-            updateTurnIndicator(data.currentTurn);
-            
-            // Update connection status
-            if (data.players.player1) {
-                const p1Status = document.getElementById('player1Status');
-                p1Status.textContent = data.players.player1.connected ? 'Connected' : 'Disconnected';
-                p1Status.className = data.players.player1.connected ? 'connection-status connected' : 'connection-status';
-            }
-            
-            if (data.players.player2) {
-                const p2Status = document.getElementById('player2Status');
-                p2Status.textContent = data.players.player2.connected ? 'Connected' : 'Disconnected';
-                p2Status.className = data.players.player2.connected ? 'connection-status connected' : 'connection-status';
-            }
-        }
-
-        // Update turn indicator
-        function updateTurnIndicator(currentTurn) {
-            const p1Card = document.getElementById('player1Card');
-            const p2Card = document.getElementById('player2Card');
-            
-            if (currentTurn === 1) {
-                p1Card.classList.add('active');
-                p2Card.classList.remove('active');
-            } else {
-                p1Card.classList.remove('active');
-                p2Card.classList.add('active');
-            }
-        }
-
-        // Check for win
-        function checkWin(board, row, col) {
-            const player = board[row][col];
-            
-            // Check horizontal
-            if (checkDirection(board, row, col, 0, 1, player)) return true;
-            // Check vertical
-            if (checkDirection(board, row, col, 1, 0, player)) return true;
-            // Check diagonal \
-            if (checkDirection(board, row, col, 1, 1, player)) return true;
-            // Check diagonal /
-            if (checkDirection(board, row, col, 1, -1, player)) return true;
-            
-            return false;
-        }
-
-        // Check direction for win
-        function checkDirection(board, row, col, deltaRow, deltaCol, player) {
-            let count = 1;
-            
-            // Check forward
-            for (let i = 1; i < 4; i++) {
-                const newRow = row + deltaRow * i;
-                const newCol = col + deltaCol * i;
-                if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
-                    count++;
-                } else break;
-            }
-            
-            // Check backward
-            for (let i = 1; i < 4; i++) {
-                const newRow = row - deltaRow * i;
-                const newCol = col - deltaCol * i;
-                if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
-                    count++;
-                } else break;
-            }
-            
-            return count >= 4;
-        }
-
-        // Check for draw
-        function checkDraw(board) {
-            return board.every(row => row.every(cell => cell !== 0));
-        }
-
-        // Handle game end
-        async function handleGameEnd(data) {
-            gameActive = false;
-            const winMessage = document.getElementById('winMessage');
-            const winText = document.getElementById('winText');
-            
-            if (data.winner === 0) {
-                winText.textContent = "It's a Draw!";
-            } else {
-                const winnerName = data.winner === 1 ? data.players.player1.name : data.players.player2.name;
-                winText.textContent = `${winnerName} Wins!`;
-                
-                // Update session stats
-                sessionStats.totalGames++;
-                if (winnerName.toLowerCase() === 'jay') {
-                    sessionStats.jayWins++;
-                } else {
-                    sessionStats.tianaWins++;
-                }
-                updateStatsDisplay();
-            }
-            
-            setTimeout(() => {
-                winMessage.classList.add('show');
-            }, 500);
-        }
-
-        // Update stats display
-        function updateStatsDisplay() {
-            document.getElementById('totalGames').textContent = sessionStats.totalGames;
-            document.getElementById('jayWins').textContent = sessionStats.jayWins;
-            document.getElementById('tianaWins').textContent = sessionStats.tianaWins;
-        }
-
-        // Handle opponent disconnect
-        function handleOpponentDisconnect() {
-            gameActive = false;
-            document.getElementById('disconnectMessage').classList.add('show');
-        }
-
-        // Rematch
-        async function rematch() {
-            document.getElementById('winMessage').classList.remove('show');
-            
-            // Reset game in Firebase
-            const updates = {
-                board: Array(6).fill(null).map(() => Array(7).fill(0)),
-                currentTurn: 1,
-                winner: null,
-                state: 'playing'
-            };
-            
-            await roomRef.update(updates);
-            gameActive = true;
-            initializeBoard();
-        }
-
-        // Leave room
-        async function leaveRoom() {
-            if (roomRef && myPlayerNumber) {
-                // Set player as disconnected
-                await roomRef.child(`players/player${myPlayerNumber}/connected`).set(false);
-                
-                // Remove listeners
-                roomRef.off();
-                if (connectionRef) {
-                    connectionRef.off();
-                }
-            }
-            
-            // Reset state
-            currentRoom = null;
-            currentPlayer = null;
-            myPlayerNumber = null;
-            gameActive = false;
-            roomRef = null;
-            
-            // Hide all screens and show setup
-            document.getElementById('lobby').classList.remove('active');
-            document.getElementById('gameInfo').classList.remove('active');
-            document.getElementById('boardWrapper').classList.remove('active');
-            document.getElementById('winMessage').classList.remove('show');
-            document.getElementById('disconnectMessage').classList.remove('show');
-            document.getElementById('setupModal').classList.add('active');
-            
-            // Clear inputs
-            document.getElementById('playerNameInput').value = '';
-            document.getElementById('roomCodeInput').value = '';
-            document.getElementById('setupError').classList.remove('show');
-        }
-
-        // Return to lobby
-        function returnToLobby() {
-            leaveRoom();
-        }
-
-        // Copy room code
-        function copyRoomCode() {
-            const code = document.getElementById('roomCode').textContent;
-            navigator.clipboard.writeText(code).then(() => {
-                const btn = event.target.closest('.copy-btn');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '<span>✓</span><span>Copied!</span>';
+                // Hide loading after connection
                 setTimeout(() => {
-                    btn.innerHTML = originalText;
-                }, 2000);
-            });
-        }
+                    document.getElementById('loading').classList.add('hidden');
+                }, 1000);
+            }
 
-        // Clean up old rooms (optional - for production)
-        function cleanupOldRooms() {
-            const roomsRef = database.ref('rooms');
-            const cutoff = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
-            
-            roomsRef.once('value', (snapshot) => {
-                snapshot.forEach((childSnapshot) => {
-                    const room = childSnapshot.val();
-                    if (room.created < cutoff) {
-                        childSnapshot.ref.remove();
+            setupConnectionMonitoring() {
+                this.connectedRef = this.database.ref('.info/connected');
+                this.connectedRef.on('value', (snapshot) => {
+                    const connected = snapshot.val();
+                    const statusDot = document.getElementById('statusDot');
+                    const statusText = document.getElementById('statusText');
+                    
+                    if (connected) {
+                        statusDot.classList.remove('offline');
+                        statusText.textContent = 'Online';
+                    } else {
+                        statusDot.classList.add('offline');
+                        statusText.textContent = 'Offline';
                     }
                 });
-            });
+            }
+
+            validatePlayerName(name) {
+                const validNames = ['jay', 'tiana'];
+                return validNames.includes(name.toLowerCase().trim());
+            }
+
+            generateRoomCode() {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let code = '';
+                for (let i = 0; i < 6; i++) {
+                    code += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return code;
+            }
+
+            async createRoom() {
+                const playerName = document.getElementById('playerNameInput').value;
+                const errorEl = document.getElementById('setupError');
+                
+                if (!this.validatePlayerName(playerName)) {
+                    errorEl.textContent = 'Only Jay or Tiana can play!';
+                    errorEl.classList.add('show');
+                    return;
+                }
+                
+                this.currentPlayer = playerName.charAt(0).toUpperCase() + playerName.slice(1).toLowerCase();
+                const roomCode = this.generateRoomCode();
+                this.currentRoom = roomCode;
+                
+                // Create room in Firebase
+                this.roomRef = this.database.ref('rooms/' + roomCode);
+                const roomData = {
+                    created: firebase.database.ServerValue.TIMESTAMP,
+                    state: 'waiting',
+                    players: {
+                        player1: {
+                            name: this.currentPlayer,
+                            connected: true
+                        }
+                    },
+                    board: this.createEmptyBoard(),
+                    currentTurn: 1,
+                    winner: null,
+                    gameStarted: false,
+                    moveCount: 0
+                };
+                
+                await this.roomRef.set(roomData);
+                this.myPlayerNumber = 1;
+                
+                // Setup room listeners
+                this.setupRoomListeners();
+                
+                // Show lobby
+                document.getElementById('setupModal').classList.remove('active');
+                document.getElementById('lobby').classList.add('active');
+                document.getElementById('roomCode').textContent = roomCode;
+                document.getElementById('currentRoom').textContent = roomCode;
+                document.getElementById('player1LobbyName').textContent = this.currentPlayer;
+                document.getElementById('player1Item').classList.add('ready');
+                
+                // Monitor connection
+                this.setupPlayerConnection();
+            }
+
+            async joinRoom() {
+                const playerName = document.getElementById('playerNameInput').value;
+                const roomCode = document.getElementById('roomCodeInput').value.toUpperCase();
+                const errorEl = document.getElementById('setupError');
+                
+                if (!this.validatePlayerName(playerName)) {
+                    errorEl.textContent = 'Only Jay or Tiana can play!';
+                    errorEl.classList.add('show');
+                    return;
+                }
+                
+                if (!roomCode) {
+                    errorEl.textContent = 'Please enter a room code!';
+                    errorEl.classList.add('show');
+                    return;
+                }
+                
+                this.currentPlayer = playerName.charAt(0).toUpperCase() + playerName.slice(1).toLowerCase();
+                this.currentRoom = roomCode;
+                
+                // Check if room exists
+                this.roomRef = this.database.ref('rooms/' + roomCode);
+                const snapshot = await this.roomRef.once('value');
+                
+                if (!snapshot.exists()) {
+                    errorEl.textContent = 'Room not found!';
+                    errorEl.classList.add('show');
+                    return;
+                }
+                
+                const roomData = snapshot.val();
+                
+                // Check if room is full
+                if (roomData.players && roomData.players.player2) {
+                    errorEl.textContent = 'Room is full!';
+                    errorEl.classList.add('show');
+                    return;
+                }
+                
+                // Check if names are different
+                if (roomData.players.player1.name.toLowerCase() === this.currentPlayer.toLowerCase()) {
+                    errorEl.textContent = 'Both players must be different (Jay vs Tiana)!';
+                    errorEl.classList.add('show');
+                    return;
+                }
+                
+                // Join as player 2
+                this.myPlayerNumber = 2;
+                await this.roomRef.child('players/player2').set({
+                    name: this.currentPlayer,
+                    connected: true
+                });
+                await this.roomRef.child('state').set('ready');
+                await this.roomRef.child('gameStarted').set(true);
+                
+                // Setup room listeners
+                this.setupRoomListeners();
+                
+                // Show lobby
+                document.getElementById('setupModal').classList.remove('active');
+                document.getElementById('lobby').classList.add('active');
+                document.getElementById('roomCode').textContent = roomCode;
+                document.getElementById('currentRoom').textContent = roomCode;
+                
+                // Setup connection monitoring
+                this.setupPlayerConnection();
+            }
+
+            setupRoomListeners() {
+                if (this.roomListener) {
+                    this.roomRef.off('value', this.roomListener);
+                }
+                
+                this.roomListener = this.roomRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (!data) return;
+                    
+                    this.updateLobby(data);
+                    
+                    if (data.gameStarted && data.players.player1 && data.players.player2) {
+                        if (!this.gameActive) {
+                            this.startGame(data);
+                        } else {
+                            this.updateGame(data);
+                        }
+                    }
+                });
+                
+                // Listen for disconnections
+                this.roomRef.child('players').on('child_changed', (snapshot) => {
+                    const playerData = snapshot.val();
+                    if (!playerData.connected && this.gameActive) {
+                        this.handleOpponentDisconnect();
+                    }
+                });
+            }
+
+            setupPlayerConnection() {
+                const playerPath = `players/player${this.myPlayerNumber}/connected`;
+                this.connectionRef = this.roomRef.child(playerPath);
+                
+                this.connectionRef.set(true);
+                this.connectionRef.onDisconnect().set(false);
+            }
+
+            updateLobby(data) {
+                if (data.players.player1) {
+                    document.getElementById('player1LobbyName').textContent = data.players.player1.name;
+                    document.getElementById('player1Item').classList.add('ready');
+                }
+                
+                if (data.players.player2) {
+                    document.getElementById('player2LobbyName').textContent = data.players.player2.name;
+                    document.getElementById('player2Item').classList.add('ready');
+                    document.getElementById('waitingMessage').style.display = 'none';
+                } else {
+                    document.getElementById('player2LobbyName').textContent = 'Waiting...';
+                    document.getElementById('player2Item').classList.remove('ready');
+                    document.getElementById('waitingMessage').style.display = 'block';
+                }
+            }
+
+            startGame(data) {
+                console.log('Starting game');
+                document.getElementById('lobby').classList.remove('active');
+                document.getElementById('gameInfo').classList.add('active');
+                document.getElementById('boardWrapper').classList.add('active');
+                
+                document.getElementById('player1Name').textContent = data.players.player1.name;
+                document.getElementById('player2Name').textContent = data.players.player2.name;
+                
+                this.board = data.board || this.createEmptyBoard();
+                this.gameActive = true;
+                this.lastProcessedMove = null;
+                
+                this.updateTurnIndicator(data.currentTurn || 1);
+                this.renderBoard();
+            }
+
+            initializeBoard() {
+                this.board = this.createEmptyBoard();
+                const boardEl = document.getElementById('board');
+                boardEl.innerHTML = '';
+                
+                for (let row = 0; row < 6; row++) {
+                    for (let col = 0; col < 7; col++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.row = row;
+                        cell.dataset.col = col;
+                        cell.onclick = () => this.makeMove(col);
+                        boardEl.appendChild(cell);
+                    }
+                }
+            }
+
+            renderBoard() {
+                const cells = document.querySelectorAll('.cell');
+                for (let row = 0; row < 6; row++) {
+                    for (let col = 0; col < 7; col++) {
+                        const index = row * 7 + col;
+                        const cell = cells[index];
+                        const value = this.board[row][col];
+                        
+                        cell.className = 'cell';
+                        if (value !== 0) {
+                            cell.classList.add('filled', `player${value}`);
+                        }
+                    }
+                }
+            }
+
+            async makeMove(col) {
+                if (!this.gameActive || !this.roomRef || this.isProcessingMove) {
+                    console.log('Move blocked:', { gameActive: this.gameActive, roomRef: !!this.roomRef, isProcessing: this.isProcessingMove });
+                    return;
+                }
+                
+                // Get current game state
+                const snapshot = await this.roomRef.once('value');
+                const data = snapshot.val();
+                
+                if (!data || data.winner !== null) {
+                    console.log('Game ended');
+                    return;
+                }
+                
+                if (data.currentTurn !== this.myPlayerNumber) {
+                    console.log('Not your turn');
+                    return;
+                }
+                
+                this.isProcessingMove = true;
+                
+                // Find lowest empty row
+                let moveRow = -1;
+                for (let row = 5; row >= 0; row--) {
+                    if (this.board[row][col] === 0) {
+                        moveRow = row;
+                        break;
+                    }
+                }
+                
+                if (moveRow === -1) {
+                    console.log('Column full');
+                    this.isProcessingMove = false;
+                    return;
+                }
+                
+                // Update local board
+                this.board[moveRow][col] = this.myPlayerNumber;
+                
+                // Check for win
+                const isWin = this.checkWin(this.board, moveRow, col);
+                const isDraw = this.checkDraw(this.board);
+                
+                // Update Firebase
+                const updates = {};
+                updates[`board/${moveRow}/${col}`] = this.myPlayerNumber;
+                updates['currentTurn'] = this.myPlayerNumber === 1 ? 2 : 1;
+                updates['moveCount'] = (data.moveCount || 0) + 1;
+                updates['lastMove'] = { 
+                    row: moveRow, 
+                    col: col, 
+                    player: this.myPlayerNumber,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                };
+                
+                if (isWin) {
+                    updates['winner'] = this.myPlayerNumber;
+                } else if (isDraw) {
+                    updates['winner'] = 0;
+                }
+                
+                await this.roomRef.update(updates);
+                
+                this.isProcessingMove = false;
+            }
+
+            updateGame(data) {
+                if (!data || !data.board) return;
+                
+                // Update local board
+                this.board = data.board;
+                
+                // Update board visuals
+                this.renderBoard();
+                
+                // Update turn indicator
+                this.updateTurnIndicator(data.currentTurn);
+                
+                // Enable/disable cells based on turn
+                const cells = document.querySelectorAll('.cell');
+                cells.forEach(cell => {
+                    if (data.currentTurn !== this.myPlayerNumber) {
+                        cell.classList.add('disabled');
+                    } else {
+                        cell.classList.remove('disabled');
+                    }
+                });
+                
+                // Update connection status
+                if (data.players.player1) {
+                    const p1Status = document.getElementById('player1Status');
+                    p1Status.textContent = data.players.player1.connected ? 'Connected' : 'Disconnected';
+                    p1Status.className = data.players.player1.connected ? 'connection-status connected' : 'connection-status';
+                }
+                
+                if (data.players.player2) {
+                    const p2Status = document.getElementById('player2Status');
+                    p2Status.textContent = data.players.player2.connected ? 'Connected' : 'Disconnected';
+                    p2Status.className = data.players.player2.connected ? 'connection-status connected' : 'connection-status';
+                }
+                
+                // Check for game end
+                if (data.winner !== null && data.winner !== undefined) {
+                    this.handleGameEnd(data);
+                }
+            }
+
+            updateTurnIndicator(currentTurn) {
+                const p1Card = document.getElementById('player1Card');
+                const p2Card = document.getElementById('player2Card');
+                
+                if (currentTurn === 1) {
+                    p1Card.classList.add('active');
+                    p2Card.classList.remove('active');
+                } else {
+                    p1Card.classList.remove('active');
+                    p2Card.classList.add('active');
+                }
+            }
+
+            checkWin(board, row, col) {
+                const player = board[row][col];
+                if (player === 0) return false;
+                
+                // Check horizontal
+                if (this.checkDirection(board, row, col, 0, 1, player)) return true;
+                // Check vertical
+                if (this.checkDirection(board, row, col, 1, 0, player)) return true;
+                // Check diagonal \
+                if (this.checkDirection(board, row, col, 1, 1, player)) return true;
+                // Check diagonal /
+                if (this.checkDirection(board, row, col, 1, -1, player)) return true;
+                
+                return false;
+            }
+
+            checkDirection(board, row, col, deltaRow, deltaCol, player) {
+                let count = 1;
+                
+                // Check forward
+                for (let i = 1; i < 4; i++) {
+                    const newRow = row + deltaRow * i;
+                    const newCol = col + deltaCol * i;
+                    if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
+                        count++;
+                    } else break;
+                }
+                
+                // Check backward
+                for (let i = 1; i < 4; i++) {
+                    const newRow = row - deltaRow * i;
+                    const newCol = col - deltaCol * i;
+                    if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
+                        count++;
+                    } else break;
+                }
+                
+                return count >= 4;
+            }
+
+            checkDraw(board) {
+                return board.every(row => row.every(cell => cell !== 0));
+            }
+
+            async handleGameEnd(data) {
+                if (!this.gameActive) return;
+                
+                this.gameActive = false;
+                const winMessage = document.getElementById('winMessage');
+                const winText = document.getElementById('winText');
+                
+                if (data.winner === 0) {
+                    winText.textContent = "It's a Draw!";
+                } else {
+                    const winnerName = data.winner === 1 ? data.players.player1.name : data.players.player2.name;
+                    winText.textContent = `${winnerName} Wins!`;
+                    
+                    // Update session stats
+                    this.sessionStats.totalGames++;
+                    if (winnerName.toLowerCase() === 'jay') {
+                        this.sessionStats.jayWins++;
+                    } else {
+                        this.sessionStats.tianaWins++;
+                    }
+                    this.updateStatsDisplay();
+                }
+                
+                setTimeout(() => {
+                    winMessage.classList.add('show');
+                }, 500);
+            }
+
+            updateStatsDisplay() {
+                document.getElementById('totalGames').textContent = this.sessionStats.totalGames;
+                document.getElementById('jayWins').textContent = this.sessionStats.jayWins;
+                document.getElementById('tianaWins').textContent = this.sessionStats.tianaWins;
+            }
+
+            handleOpponentDisconnect() {
+                this.gameActive = false;
+                document.getElementById('disconnectMessage').classList.add('show');
+            }
+
+            async rematch() {
+                document.getElementById('winMessage').classList.remove('show');
+                
+                // Reset game in Firebase
+                const updates = {
+                    board: this.createEmptyBoard(),
+                    currentTurn: 1,
+                    winner: null,
+                    moveCount: 0,
+                    lastMove: null
+                };
+                
+                await this.roomRef.update(updates);
+                this.gameActive = true;
+                this.isProcessingMove = false;
+                this.board = this.createEmptyBoard();
+                this.initializeBoard();
+            }
+
+            async leaveRoom() {
+                if (this.roomRef && this.myPlayerNumber) {
+                    await this.roomRef.child(`players/player${this.myPlayerNumber}/connected`).set(false);
+                    
+                    if (this.roomListener) {
+                        this.roomRef.off('value', this.roomListener);
+                    }
+                    if (this.connectionRef) {
+                        this.connectionRef.off();
+                    }
+                }
+                
+                // Reset state
+                this.currentRoom = null;
+                this.currentPlayer = null;
+                this.myPlayerNumber = null;
+                this.gameActive = false;
+                this.roomRef = null;
+                this.isProcessingMove = false;
+                
+                // Hide all screens and show setup
+                document.getElementById('lobby').classList.remove('active');
+                document.getElementById('gameInfo').classList.remove('active');
+                document.getElementById('boardWrapper').classList.remove('active');
+                document.getElementById('winMessage').classList.remove('show');
+                document.getElementById('disconnectMessage').classList.remove('show');
+                document.getElementById('setupModal').classList.add('active');
+                
+                // Clear inputs
+                document.getElementById('playerNameInput').value = '';
+                document.getElementById('roomCodeInput').value = '';
+                document.getElementById('setupError').classList.remove('show');
+            }
+
+            returnToLobby() {
+                this.leaveRoom();
+            }
+
+            copyRoomCode() {
+                const code = document.getElementById('roomCode').textContent;
+                navigator.clipboard.writeText(code).then(() => {
+                    const btn = event.target.closest('.copy-btn');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<span>✓</span><span>Copied!</span>';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 2000);
+                }).catch(() => {
+                    // Fallback for older browsers
+                    const textArea = document.createElement("textarea");
+                    textArea.value = code;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                });
+            }
         }
 
-        // Call cleanup periodically
-        setInterval(cleanupOldRooms, 60 * 60 * 1000); // Every hour
+        // Initialize game
+        const game = new Connect4Game();
+        document.addEventListener('DOMContentLoaded', () => {
+            game.init();
+        });
     </script>
 </body>
 </html>
