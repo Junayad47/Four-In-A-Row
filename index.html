@@ -1,864 +1,154 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Multiplayer Four-in-a-Row game for Jay and Tiana with GTA V-inspired visuals">
-    <meta name="theme-color" content="#0f0f0f">
-    <title>Four-in-a-Row | Jay vs Tiana - Multiplayer</title>
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --neon-pink: #ff0099;
-            --neon-blue: #00ffff;
-            --neon-purple: #9945ff;
-            --neon-green: #39ff14;
-            --dark-bg: #0a0a0a;
-            --glass-bg: rgba(15, 15, 15, 0.7);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --text-primary: #ffffff;
-            --text-secondary: #b0b0b0;
-        }
-
-        body {
-            font-family: 'Arial Black', 'Helvetica', sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2a 100%);
-            color: var(--text-primary);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-x: hidden;
-            position: relative;
-        }
-
-        /* Animated background */
-        .bg-animation {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -2;
-            background: 
-                radial-gradient(circle at 20% 50%, rgba(255, 0, 153, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 50%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 50% 100%, rgba(153, 69, 255, 0.1) 0%, transparent 50%);
-            animation: bgPulse 10s ease-in-out infinite;
-        }
-
-        @keyframes bgPulse {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 1; }
-        }
-
-        /* City skyline */
-        .skyline {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 200px;
-            z-index: -1;
-            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
-            opacity: 0.3;
-        }
-
-        /* Header */
-        .header {
-            text-align: center;
-            padding: 2rem 1rem 1rem;
-            width: 100%;
-            max-width: 1200px;
-        }
-
-        .title {
-            font-size: clamp(2rem, 5vw, 3.5rem);
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            background: linear-gradient(45deg, var(--neon-pink), var(--neon-blue));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-shadow: 0 0 30px rgba(255, 0, 153, 0.5);
-            animation: neonFlicker 2s ease-in-out infinite;
-            margin-bottom: 0.5rem;
-        }
-
-        @keyframes neonFlicker {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
-        }
-
-        .subtitle {
-            color: var(--text-secondary);
-            font-size: 1rem;
-            letter-spacing: 2px;
-        }
-
-        /* Game container */
-        .game-container {
-            width: 100%;
-            max-width: 1200px;
-            padding: 1rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2rem;
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(10px);
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 3rem 2rem;
-            max-width: 400px;
-            width: 90%;
-            box-shadow: 
-                0 0 50px rgba(255, 0, 153, 0.3),
-                inset 0 0 20px rgba(255, 255, 255, 0.05);
-            animation: slideUp 0.3s ease-out;
-        }
-
-        @keyframes slideUp {
-            from {
-                transform: translateY(50px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .modal h2 {
-            text-align: center;
-            margin-bottom: 2rem;
-            font-size: 1.8rem;
-            background: linear-gradient(45deg, var(--neon-pink), var(--neon-purple));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .mode-selector {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .mode-btn {
-            flex: 1;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.05);
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            color: var(--text-primary);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-align: center;
-        }
-
-        .mode-btn.active {
-            border-color: var(--neon-pink);
-            background: rgba(255, 0, 153, 0.1);
-        }
-
-        .mode-btn:hover {
-            border-color: var(--neon-blue);
-        }
-
-        .input-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.05);
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            color: var(--text-primary);
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-        }
-
-        .input-group input:focus {
-            outline: none;
-            border-color: var(--neon-pink);
-            box-shadow: 0 0 20px rgba(255, 0, 153, 0.3);
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .error-message {
-            color: #ff4444;
-            font-size: 0.9rem;
-            margin-top: 0.5rem;
-            display: none;
-            text-align: center;
-        }
-
-        .error-message.show {
-            display: block;
-            animation: shake 0.3s ease;
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
-        }
-
-        /* Buttons */
-        .btn {
-            padding: 1rem 2rem;
-            background: linear-gradient(45deg, var(--neon-pink), var(--neon-purple));
-            border: none;
-            border-radius: 10px;
-            color: white;
-            font-weight: bold;
-            font-size: 1rem;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 20px rgba(255, 0, 153, 0.3);
-            position: relative;
-            overflow: hidden;
-            width: 100%;
-        }
-
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s ease;
-        }
-
-        .btn:hover::before {
-            left: 100%;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 30px rgba(255, 0, 153, 0.5);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(45deg, var(--neon-blue), var(--neon-green));
-            box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3);
-        }
-
-        .btn-secondary:hover {
-            box-shadow: 0 6px 30px rgba(0, 255, 255, 0.5);
-        }
-
-        /* Game info */
-        .game-info {
-            display: none;
-            gap: 2rem;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: wrap;
-            width: 100%;
-        }
-
-        .game-info.active {
-            display: flex;
-        }
-
-        .player-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border);
-            border-radius: 15px;
-            padding: 1.5rem;
-            min-width: 150px;
-            text-align: center;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .player-card.active {
-            border-color: var(--neon-pink);
-            box-shadow: 0 0 30px rgba(255, 0, 153, 0.4);
-            transform: scale(1.05);
-        }
-
-        .player-card .player-name {
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .player-disc {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            margin: 0.5rem auto;
-            box-shadow: 0 0 15px currentColor;
-        }
-
-        .player1 .player-disc {
-            background: linear-gradient(135deg, var(--neon-pink), #ff33cc);
-        }
-
-        .player2 .player-disc {
-            background: linear-gradient(135deg, var(--neon-blue), #33ffff);
-        }
-
-        /* Game board */
-        .board-wrapper {
-            display: none;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 2px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 1.5rem;
-            box-shadow: 
-                0 0 50px rgba(153, 69, 255, 0.2),
-                inset 0 0 30px rgba(255, 255, 255, 0.05);
-        }
-
-        .board-wrapper.active {
-            display: block;
-        }
-
-        .board {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 0.5rem;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 15px;
-        }
-
-        .cell {
-            aspect-ratio: 1;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            min-width: 40px;
-            max-width: 80px;
-        }
-
-        .cell:hover:not(.filled) {
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-            border-color: rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
-        }
-
-        .cell.filled {
-            cursor: not-allowed;
-            animation: dropIn 0.5s ease-out;
-        }
-
-        @keyframes dropIn {
-            0% {
-                transform: translateY(-200px) scale(0.8);
-                opacity: 0;
-            }
-            50% {
-                transform: translateY(10px) scale(1.1);
-            }
-            100% {
-                transform: translateY(0) scale(1);
-                opacity: 1;
-            }
-        }
-
-        .cell.player1 {
-            background: linear-gradient(135deg, var(--neon-pink), #ff33cc);
-            border-color: var(--neon-pink);
-            box-shadow: 
-                0 0 20px rgba(255, 0, 153, 0.6),
-                inset 0 0 10px rgba(255, 255, 255, 0.3);
-        }
-
-        .cell.player2 {
-            background: linear-gradient(135deg, var(--neon-blue), #33ffff);
-            border-color: var(--neon-blue);
-            box-shadow: 
-                0 0 20px rgba(0, 255, 255, 0.6),
-                inset 0 0 10px rgba(255, 255, 255, 0.3);
-        }
-
-        .cell.winner {
-            animation: winPulse 1s ease-in-out infinite;
-        }
-
-        @keyframes winPulse {
-            0%, 100% {
-                transform: scale(1);
-                filter: brightness(1);
-            }
-            50% {
-                transform: scale(1.15);
-                filter: brightness(1.5);
-            }
-        }
-
-        /* Win message */
-        .win-message {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 2px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 2rem;
-            text-align: center;
-            z-index: 100;
-            animation: winAppear 0.5s ease-out;
-            box-shadow: 0 0 100px rgba(255, 0, 153, 0.5);
-        }
-
-        .win-message.show {
-            display: block;
-        }
-
-        @keyframes winAppear {
-            0% {
-                transform: translate(-50%, -50%) scale(0);
-                opacity: 0;
-            }
-            50% {
-                transform: translate(-50%, -50%) scale(1.1);
-            }
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 1;
-            }
-        }
-
-        .win-text {
-            font-size: 2rem;
-            margin-bottom: 1rem;
-            text-transform: uppercase;
-            animation: winTextGlow 1s ease-in-out infinite;
-        }
-
-        @keyframes winTextGlow {
-            0%, 100% {
-                text-shadow: 0 0 20px rgba(255, 0, 153, 0.8);
-            }
-            50% {
-                text-shadow: 0 0 40px rgba(255, 0, 153, 1);
-            }
-        }
-
-        .win-actions {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            margin-top: 1.5rem;
-        }
-
-        .win-actions .btn {
-            padding: 0.8rem 1.5rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .board {
-                gap: 0.3rem;
-                padding: 0.5rem;
-            }
-            
-            .cell {
-                min-width: 35px;
-            }
-            
-            .modal-content {
-                padding: 2rem 1.5rem;
-            }
-            
-            .game-info {
-                gap: 1rem;
-            }
-            
-            .player-card {
-                min-width: 120px;
-                padding: 1rem;
-            }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <meta name="description" content="Four-in-a-Row | Jay vs Tiana — GTA neon style, local & online multiplayer" />
+  <title>Four-in-a-Row — Jay vs Tiana</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Background elements -->
-    <div class="bg-animation"></div>
-    <div class="skyline"></div>
+  <div class="bg-animation"></div>
+  <div class="skyline"></div>
 
-    <!-- Header -->
-    <header class="header">
-        <h1 class="title">Four-in-a-Row</h1>
-        <p class="subtitle">JAY VS TIANA</p>
-    </header>
+  <header class="header">
+    <h1 class="title">Four-in-a-Row</h1>
+    <p class="subtitle">JAY VS TIANA • Local & Online</p>
+  </header>
 
-    <!-- Game Mode Selection Modal -->
-    <div class="modal active" id="modeModal">
-        <div class="modal-content">
-            <h2>Select Game Mode</h2>
-            <div class="mode-selector">
-                <div class="mode-btn active" onclick="selectMode('local')" id="localMode">
-                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎮</div>
-                    <div>Local Play</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.3rem;">Same Device</div>
-                </div>
-                <div class="mode-btn" onclick="selectMode('online')" id="onlineMode">
-                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">🌐</div>
-                    <div>Online Play</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.3rem;">Different Devices</div>
-                </div>
-            </div>
-            <button class="btn" onclick="proceedWithMode()">Continue</button>
+  <!-- Mode Select -->
+  <div class="modal active" id="modeModal">
+    <div class="modal-content">
+      <h2>Select Game Mode</h2>
+      <div class="mode-selector">
+        <button class="mode-btn active" id="localMode" data-mode="local">
+          <div class="emoji">🎮</div>
+          <div>Local Play</div>
+          <div class="hint">Same device</div>
+        </button>
+        <button class="mode-btn" id="onlineMode" data-mode="online">
+          <div class="emoji">🌐</div>
+          <div>Online Play</div>
+          <div class="hint">Two devices</div>
+        </button>
+      </div>
+      <button class="btn" id="modeContinueBtn">Continue</button>
+    </div>
+  </div>
+
+  <!-- Setup -->
+  <div class="modal" id="setupModal">
+    <div class="modal-content">
+      <h2 id="setupTitle">Select Players</h2>
+
+      <div class="online-only" id="onlineSetup" hidden>
+        <div class="stack">
+          <label class="switcher">
+            <input type="radio" name="onlineRole" id="createRoom" checked>
+            <span>Create Room</span>
+          </label>
+          <label class="switcher">
+            <input type="radio" name="onlineRole" id="joinRoom">
+            <span>Join Room</span>
+          </label>
         </div>
+        <div id="createBox">
+          <div class="input-group">
+            <label>Your Name</label>
+            <select id="creatorName">
+              <option value="Jay">Jay</option>
+              <option value="Tiana">Tiana</option>
+            </select>
+          </div>
+          <button class="btn" id="createRoomBtn">Create Room</button>
+          <div class="roomCodeRow" id="roomCodeRow" hidden>
+            <div class="roomCode" id="roomCode"></div>
+            <button class="btn btn-secondary" id="copyCodeBtn">Copy Code</button>
+          </div>
+        </div>
+        <div id="joinBox" hidden>
+          <div class="input-group">
+            <label>Your Name</label>
+            <select id="joinerName">
+              <option value="Jay">Jay</option>
+              <option value="Tiana">Tiana</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Room Code</label>
+            <input type="text" id="joinCode" placeholder="e.g. 4F7KQ2" maxlength="6" />
+          </div>
+          <button class="btn" id="joinRoomBtn">Join Room</button>
+        </div>
+        <div class="note">Share the code with your friend. Only <b>Jay</b> and <b>Tiana</b> are allowed and must be different.</div>
+      </div>
+
+      <div class="local-only" id="localSetup">
+        <div class="input-group">
+          <label>Player 1 (Pink)</label>
+          <input type="text" id="player1Input" placeholder="Jay or Tiana" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label>Player 2 (Cyan)</label>
+          <input type="text" id="player2Input" placeholder="Jay or Tiana" autocomplete="off">
+        </div>
+        <button class="btn" id="startLocalBtn">Start Game</button>
+      </div>
+
+      <div class="error-message" id="errorMessage"></div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <main class="game-container">
+    <div class="game-info" id="gameInfo">
+      <div class="player-card player1" id="player1Card">
+        <div class="player-name" id="player1Name">Player 1</div>
+        <div class="player-disc"></div>
+        <div class="tally"><span id="p1Wins">0</span> Wins • <span id="p1Games">0</span> Games</div>
+      </div>
+      <div class="player-card player2" id="player2Card">
+        <div class="player-name" id="player2Name">Player 2</div>
+        <div class="player-disc"></div>
+        <div class="tally"><span id="p2Wins">0</span> Wins • <span id="p2Games">0</span> Games</div>
+      </div>
     </div>
 
-    <!-- Player Setup Modal -->
-    <div class="modal" id="setupModal">
-        <div class="modal-content">
-            <h2 id="setupTitle">Select Players</h2>
-            <div class="input-group">
-                <label for="player1Input">Player 1 (Pink)</label>
-                <input type="text" id="player1Input" placeholder="Enter name..." autocomplete="off">
-            </div>
-            <div class="input-group">
-                <label for="player2Input">Player 2 (Cyan)</label>
-                <input type="text" id="player2Input" placeholder="Enter name..." autocomplete="off">
-            </div>
-            <div class="error-message" id="errorMessage"></div>
-            <button class="btn" onclick="startLocalGame()">Start Game</button>
-        </div>
+    <div class="board-wrapper" id="boardWrapper">
+      <div class="board" id="board"></div>
     </div>
+  </main>
 
-    <!-- Game container -->
-    <main class="game-container">
-        <!-- Game info -->
-        <div class="game-info" id="gameInfo">
-            <div class="player-card player1" id="player1Card">
-                <div class="player-name" id="player1Name">Player 1</div>
-                <div class="player-disc"></div>
-            </div>
-            <div class="player-card player2" id="player2Card">
-                <div class="player-name" id="player2Name">Player 2</div>
-                <div class="player-disc"></div>
-            </div>
-        </div>
-
-        <!-- Game board -->
-        <div class="board-wrapper" id="boardWrapper">
-            <div class="board" id="board"></div>
-        </div>
-    </main>
-
-    <!-- Win message -->
-    <div class="win-message" id="winMessage">
-        <div class="win-text" id="winText">Winner!</div>
-        <div class="win-actions">
-            <button class="btn" onclick="rematch()">Rematch</button>
-            <button class="btn btn-secondary" onclick="newGame()">New Game</button>
-        </div>
+  <div class="win-message" id="winMessage">
+    <div class="win-text" id="winText">Winner!</div>
+    <div class="win-actions">
+      <button class="btn" id="rematchBtn">Rematch</button>
+      <button class="btn btn-secondary" id="newGameBtn">New Game</button>
     </div>
+  </div>
 
-    <script>
-        // Game state
-        let gameMode = 'local';
-        let board = [];
-        let currentPlayer = 1;
-        let gameActive = false;
-        let player1Name = '';
-        let player2Name = '';
+  <!-- Firebase (compat builds for simplicity) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-database-compat.js"></script>
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeBoard();
-        });
+  <!-- Your Firebase config goes here (edit firebase-config.js) -->
+  <script src="firebase-config.js"></script>
 
-        // Select game mode
-        function selectMode(mode) {
-            gameMode = mode;
-            document.getElementById('localMode').classList.toggle('active', mode === 'local');
-            document.getElementById('onlineMode').classList.toggle('active', mode === 'online');
-        }
+  <!-- App -->
+  <script src="app.js"></script>
 
-        // Proceed with selected mode
-        function proceedWithMode() {
-            if (gameMode === 'online') {
-                alert('Online multiplayer requires Firebase setup. Please use the Firebase-enabled version with proper configuration. For now, enjoy local play!');
-                gameMode = 'local';
-            }
-            
-            document.getElementById('modeModal').classList.remove('active');
-            document.getElementById('setupModal').classList.add('active');
-        }
-
-        // Initialize board
-        function initializeBoard() {
-            board = Array(6).fill(null).map(() => Array(7).fill(0));
-            const boardEl = document.getElementById('board');
-            boardEl.innerHTML = '';
-            
-            for (let row = 0; row < 6; row++) {
-                for (let col = 0; col < 7; col++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.dataset.row = row;
-                    cell.dataset.col = col;
-                    cell.onclick = () => makeMove(col);
-                    boardEl.appendChild(cell);
-                }
-            }
-        }
-
-        // Validate players
-        function validatePlayers(p1, p2) {
-            const validNames = ['jay', 'tiana'];
-            p1 = p1.toLowerCase().trim();
-            p2 = p2.toLowerCase().trim();
-            
-            if (!p1 || !p2) {
-                return { valid: false, message: 'Please enter both player names' };
-            }
-            
-            if (!validNames.includes(p1) || !validNames.includes(p2)) {
-                return { valid: false, message: 'Only Jay and Tiana can play!' };
-            }
-            
-            if (p1 === p2) {
-                return { valid: false, message: 'Players must be different (Jay vs Tiana)' };
-            }
-            
-            return { valid: true };
-        }
-
-        // Start local game
-        function startLocalGame() {
-            const p1Input = document.getElementById('player1Input').value;
-            const p2Input = document.getElementById('player2Input').value;
-            const validation = validatePlayers(p1Input, p2Input);
-            const errorEl = document.getElementById('errorMessage');
-            
-            if (!validation.valid) {
-                errorEl.textContent = validation.message;
-                errorEl.classList.add('show');
-                return;
-            }
-            
-            player1Name = p1Input.charAt(0).toUpperCase() + p1Input.slice(1).toLowerCase();
-            player2Name = p2Input.charAt(0).toUpperCase() + p2Input.slice(1).toLowerCase();
-            
-            document.getElementById('player1Name').textContent = player1Name;
-            document.getElementById('player2Name').textContent = player2Name;
-            
-            document.getElementById('setupModal').classList.remove('active');
-            document.getElementById('gameInfo').classList.add('active');
-            document.getElementById('boardWrapper').classList.add('active');
-            
-            gameActive = true;
-            currentPlayer = 1;
-            updateTurnIndicator();
-            initializeBoard();
-        }
-
-        // Update turn indicator
-        function updateTurnIndicator() {
-            const p1Card = document.getElementById('player1Card');
-            const p2Card = document.getElementById('player2Card');
-            
-            if (currentPlayer === 1) {
-                p1Card.classList.add('active');
-                p2Card.classList.remove('active');
-            } else {
-                p1Card.classList.remove('active');
-                p2Card.classList.add('active');
-            }
-        }
-
-        // Make move
-        function makeMove(col) {
-            if (!gameActive) return;
-            
-            // Find lowest empty row
-            for (let row = 5; row >= 0; row--) {
-                if (board[row][col] === 0) {
-                    board[row][col] = currentPlayer;
-                    updateCell(row, col);
-                    
-                    if (checkWin(row, col)) {
-                        endGame(currentPlayer);
-                    } else if (checkDraw()) {
-                        endGame(0);
-                    } else {
-                        currentPlayer = currentPlayer === 1 ? 2 : 1;
-                        updateTurnIndicator();
-                    }
-                    break;
-                }
-            }
-        }
-
-        // Update cell visual
-        function updateCell(row, col) {
-            const cells = document.querySelectorAll('.cell');
-            const index = row * 7 + col;
-            const cell = cells[index];
-            cell.classList.add('filled', `player${currentPlayer}`);
-        }
-
-        // Check for win
-        function checkWin(row, col) {
-            const player = board[row][col];
-            
-            // Check horizontal
-            if (checkDirection(row, col, 0, 1, player)) return true;
-            // Check vertical
-            if (checkDirection(row, col, 1, 0, player)) return true;
-            // Check diagonal \
-            if (checkDirection(row, col, 1, 1, player)) return true;
-            // Check diagonal /
-            if (checkDirection(row, col, 1, -1, player)) return true;
-            
-            return false;
-        }
-
-        // Check direction for win
-        function checkDirection(row, col, deltaRow, deltaCol, player) {
-            let count = 1;
-            const winningCells = [[row, col]];
-            
-            // Check forward
-            for (let i = 1; i < 4; i++) {
-                const newRow = row + deltaRow * i;
-                const newCol = col + deltaCol * i;
-                if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
-                    count++;
-                    winningCells.push([newRow, newCol]);
-                } else break;
-            }
-            
-            // Check backward
-            for (let i = 1; i < 4; i++) {
-                const newRow = row - deltaRow * i;
-                const newCol = col - deltaCol * i;
-                if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 7 && board[newRow][newCol] === player) {
-                    count++;
-                    winningCells.push([newRow, newCol]);
-                } else break;
-            }
-            
-            if (count >= 4) {
-                highlightWinningCells(winningCells);
-                return true;
-            }
-            return false;
-        }
-
-        // Highlight winning cells
-        function highlightWinningCells(cells) {
-            cells.forEach(([row, col]) => {
-                const index = row * 7 + col;
-                document.querySelectorAll('.cell')[index].classList.add('winner');
-            });
-        }
-
-        // Check for draw
-        function checkDraw() {
-            return board.every(row => row.every(cell => cell !== 0));
-        }
-
-        // End game
-        function endGame(winner) {
-            gameActive = false;
-            const winMessage = document.getElementById('winMessage');
-            const winText = document.getElementById('winText');
-            
-            if (winner === 0) {
-                winText.textContent = "It's a Draw!";
-            } else {
-                const winnerName = winner === 1 ? player1Name : player2Name;
-                winText.textContent = `${winnerName} Wins!`;
-            }
-            
-            setTimeout(() => {
-                winMessage.classList.add('show');
-            }, 500);
-        }
-
-        // Rematch
-        function rematch() {
-            document.getElementById('winMessage').classList.remove('show');
-            initializeBoard();
-            currentPlayer = 1;
-            gameActive = true;
-            updateTurnIndicator();
-        }
-
-        // New game
-        function newGame() {
-            document.getElementById('winMessage').classList.remove('show');
-            document.getElementById('gameInfo').classList.remove('active');
-            document.getElementById('boardWrapper').classList.remove('active');
-            document.getElementById('setupModal').classList.add('active');
-            document.getElementById('player1Input').value = '';
-            document.getElementById('player2Input').value = '';
-            document.getElementById('errorMessage').classList.remove('show');
-            initializeBoard();
-        }
-    </script>
+  <!-- PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(()=>{});
+      });
+    }
+  </script>
 </body>
 </html>
